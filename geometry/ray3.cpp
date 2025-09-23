@@ -11,7 +11,10 @@ Ray3::Ray3() : o{0.0f, 0.0f, 0.0f}, d{1.0f, 0.0f, 0.0f} {}
 
 Ray3::Ray3(const Point3 &p1, const Point3 &p2, bool normalize)
 {
-    // Student to define - Module 5
+   o = p1;
+   d = p2 - p1;
+   if(normalize)
+      d.normalize();
 }
 
 Ray3::Ray3(const Point3 &origin, const Vector3 &dir) : o(origin), d(dir) {}
@@ -38,7 +41,7 @@ RayRefractionResult Ray3::refract(const Point3 &int_pt, Vector3 &n, float u1, fl
 Point3 Ray3::intersect(float t) const
 {
     // Student to define - Module 5
-    return Point3();
+    return o + d * t;
 }
 
 RayObjectIntersectResult Ray3::intersect(const Plane &p) const
@@ -48,8 +51,38 @@ RayObjectIntersectResult Ray3::intersect(const Plane &p) const
 }
 RayObjectIntersectResult Ray3::intersect(const BoundingSphere &sphere) const
 {
-    // Student to define - Module 5
-    return {false, 0.0f};
+   //vector from ray origin to sphere center
+   Vector3 oc = sphere.center - o;
+   
+   // project oc onto the ray direction to find the closest point 
+   float t_closest = oc.dot(d);
+
+   //find the closest point on the ray to the sphere center 
+   Point3 closest_point = o + d * t_closest;
+
+   //Calculate the perpendicular distance from sphere center to ray 
+   Vector3 perp = sphere.center - closest_point;
+   float perp_dis_square = perp.dot(perp);
+   float radius_sq = sphere.radius * sphere.radius;
+
+   //back out if perpendicular distance > radius 
+   if(perp_dis_square > radius_sq)
+      return { false, 0.0f};
+
+   //use pythagorean for the half chord
+   float half_chord = std::sqrt(radius_sq - perp_dis_square);
+
+   //caculate the two intersect points along the ray 
+   float t1 = t_closest - half_chord; //near
+   float t2 = t_closest + half_chord; //far 
+
+   //return the nearest intersection that is in front of the ray 
+   if(t1 >= 0.0f)
+      return {true, t1};
+   else if(t2 >= 0.0f)
+      return {true, t2};
+   else 
+      return {false, 0.0f};
 }
 
 RayObjectIntersectResult Ray3::intersect(const AABB &box) const
