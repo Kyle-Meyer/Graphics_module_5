@@ -15,6 +15,7 @@ class UnitSphere : public GeometryNode
     /**
      * Constructor. Creates vertex list for a unit sphere using 
      * 10 degree increments for both latitude and longitude.
+     * Uses array drawing approach (no indices).
      * @param position_loc  Shader attribute location for vertex positions
      * @param normal_loc    Shader attribute location for vertex normals
      */
@@ -34,16 +35,13 @@ class UnitSphere : public GeometryNode
   protected:
     GLuint  vao_;          // Vertex Array Object
     GLuint  vbo_;          // Vertex Buffer Object
-    GLuint  ebo_;          // Element Buffer Object (for indices)
-    GLsizei index_count_;  // Number of indices to draw
+    GLsizei vertex_count_; // Number of vertices to draw
     
     /**
-     * Generate sphere vertices and normals using spherical coordinates
+     * Generate sphere vertices and normals by creating duplicate vertices for each triangle
      * @param vertex_list  Vector to store generated vertices and normals
-     * @param indices      Vector to store triangle indices
      */
-    void generateSphereGeometry(std::vector<VertexAndNormal> &vertex_list, 
-                               std::vector<GLuint> &indices);
+    void generateSphereGeometry(std::vector<VertexAndNormal> &vertex_list);
 };
 
 } // namespace cg
