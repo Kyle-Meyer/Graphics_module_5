@@ -25,6 +25,7 @@
 #include <iostream>
 #include <thread>
 #include <vector>
+#include "Module5/unit_sphere_node.hpp"
 
 namespace cg
 {
@@ -274,6 +275,7 @@ void construct_scene()
     auto wall_color = std::make_shared<cg::ColorNode>(cg::Color4(1.0f, 1.0f, 1.0f));
     auto ceiling_color = std::make_shared<cg::ColorNode>(cg::Color4(0.1f, 0.4f, 1.0f));
 
+    /*
     // Construct a unit box with outward normals as a scene graph node
     // using relative transforms
     auto unit_box = construct_unit_box(unit_square);
@@ -286,7 +288,18 @@ void construct_scene()
     box_transform->translate(25.0f, 25.0f, 10.1f);
     box_transform->rotate_z(45.0f);
     box_transform->scale(40.0f, 20.0f, 20.0f);
+    */ 
+    // Create a unit sphere for testing
+    auto unit_sphere = std::make_shared<cg::UnitSphere>(shader->get_position_loc(), shader->get_normal_loc());
 
+    // Set a red color for the sphere
+    auto sphere_color = std::make_shared<cg::ColorNode>(cg::Color4(1.0f, 0.0f, 0.0f));
+
+    // Construct a transform node to position and size the sphere
+    auto sphere_transform = std::make_shared<cg::TransformNode>();
+    sphere_transform->translate(25.0f, 25.0f, 20.0f);  // Position it in the room
+    sphere_transform->scale(15.0f, 15.0f, 15.0f);      // Make it visible size
+  
     // Construct the scene layout
     g_scene_root = std::make_shared<cg::SceneNode>();
     g_scene_root->add_child(shader);
@@ -307,9 +320,14 @@ void construct_scene()
     ceiling_color->add_child(ceiling_transform);
     ceiling_transform->add_child(unit_square);
 
+  /*
     shader->add_child(box_color);
     box_color->add_child(box_transform);
     box_transform->add_child(unit_box);
+*/
+    shader->add_child(sphere_color);
+    sphere_color->add_child(sphere_transform);
+    sphere_transform->add_child(unit_sphere);
 }
 
 /**
