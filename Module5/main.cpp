@@ -26,7 +26,7 @@
 #include <thread>
 #include <vector>
 #include "Module5/unit_sphere_node.hpp"
-
+#include <Module5/ball_transform.hpp>
 namespace cg
 {
 
@@ -58,6 +58,7 @@ std::shared_ptr<cg::SceneNode> g_scene_root;
 
 cg::SceneState g_scene_state;
 
+std::shared_ptr<cg::BallTransform> g_test_ball;
 // Sleep function to help run a reasonable timer
 void sleep(int32_t milliseconds)
 {
@@ -290,15 +291,32 @@ void construct_scene()
     box_transform->scale(40.0f, 20.0f, 20.0f);
     */ 
     // Create a unit sphere for testing
-    auto unit_sphere = std::make_shared<cg::UnitSphere>(shader->get_position_loc(), shader->get_normal_loc());
+    auto unit_sphere = std::make_shared<cg::UnitSphere>(
+        shader->get_position_loc(), shader->get_normal_loc());
+    
+    // Create a test ball
+    cg::Point3 start_pos(0.0f, 0.0f, 20.0f);  // Center of room, low
+    cg::Vector3 direction0(1.0f, 1.0f, 0.0f);   // Moving diagonally
+    // Test 1: Move straight up
+    cg::Vector3 direction1(0.0f, 0.0f, 1.0f);
+    
+    // Test 2: Move up and to the right  
+    cg::Vector3 direction2(1.0f, 0.0f, 1.0f);
+    
+    // Test 3: Move toward camera and up
+    cg::Vector3 direction3(0.0f, -1.0f, 1.0f);
+    
+    // Test 4: Full diagonal (right, away, up)
+    cg::Vector3 direction4(1.0f, 1.0f, 1.0f);
+    float radius = 10.0f;
+    float speed = 20.0f;  // units per second
+    
+    auto ball_transform = std::make_shared<cg::BallTransform>(
+        radius, start_pos, direction3, speed);
+    
+    auto ball_color = std::make_shared<cg::ColorNode>(cg::Color4(1.0f, 0.0f, 0.0f)); // Red
+    
 
-    // Set a red color for the sphere
-    auto sphere_color = std::make_shared<cg::ColorNode>(cg::Color4(1.0f, 0.0f, 0.0f));
-
-    // Construct a transform node to position and size the sphere
-    auto sphere_transform = std::make_shared<cg::TransformNode>();
-    sphere_transform->translate(25.0f, 25.0f, 20.0f);  // Position it in the room
-    sphere_transform->scale(15.0f, 15.0f, 15.0f);      // Make it visible size
   
     // Construct the scene layout
     g_scene_root = std::make_shared<cg::SceneNode>();
@@ -325,9 +343,12 @@ void construct_scene()
     box_color->add_child(box_transform);
     box_transform->add_child(unit_box);
 */
-    shader->add_child(sphere_color);
-    sphere_color->add_child(sphere_transform);
-    sphere_transform->add_child(unit_sphere);
+    // Add to scene graph
+    shader->add_child(ball_color);
+    ball_color->add_child(ball_transform);
+    ball_transform->add_child(unit_sphere);
+
+    g_test_ball = ball_transform;
 }
 
 /**
@@ -436,6 +457,7 @@ int main(int argc, char **argv)
     // Main loop
     while(handle_events())
     {
+        g_scene_root->update(g_scene_state); 
         display();
         sleep(DRAW_INTERVAL_MILLIS);
     }
