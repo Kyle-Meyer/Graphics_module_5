@@ -23,20 +23,40 @@ void BallTransform::update(SceneState& scene_state)
     // Handle collision response first
     if (collision_occurred && intersect_plane != nullptr) 
     {
+        // Move to collision point first
+        Point3 movement = Point3(velocity.x * intersect_time, 
+                                velocity.y * intersect_time, 
+                                velocity.z * intersect_time);
+        position.x += movement.x;
+        position.y += movement.y;
+        position.z += movement.z;
+        
         // Reflect velocity off the intersect plane
         Vector3 normal = intersect_plane->get_normal();
         velocity = velocity.reflect(normal);
+        
+        // Move for remaining time
+        float remaining_time = FRAME_TIME - intersect_time;
+        Point3 remaining_movement = Point3(velocity.x * remaining_time, 
+                                         velocity.y * remaining_time, 
+                                         velocity.z * remaining_time);
+        position.x += remaining_movement.x;
+        position.y += remaining_movement.y;
+        position.z += remaining_movement.z;
+        
         collision_occurred = false;
         intersect_plane = nullptr;
     }
-    
-    // Move ball along current path
-    Point3 movement = Point3(velocity.x * FRAME_TIME, 
-                            velocity.y * FRAME_TIME, 
-                            velocity.z * FRAME_TIME);
-    position.x += movement.x;
-    position.y += movement.y;
-    position.z += movement.z;
+    else
+    {
+        // Normal movement - no collision
+        Point3 movement = Point3(velocity.x * FRAME_TIME, 
+                                velocity.y * FRAME_TIME, 
+                                velocity.z * FRAME_TIME);
+        position.x += movement.x;
+        position.y += movement.y;
+        position.z += movement.z;
+    }
     
     // Update transformation matrix
     load_identity();

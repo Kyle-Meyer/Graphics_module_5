@@ -14,7 +14,10 @@
 //============================================================================
 
 #include "filesystem_support/file_locator.hpp"
+#include "geometry/bounding_sphere.hpp"
 #include "geometry/geometry.hpp"
+#include "geometry/plane.hpp"
+#include "scene/color_node.hpp"
 #include "scene/graphics.hpp"
 #include "scene/scene.hpp"
 
@@ -23,10 +26,14 @@
 
 #include <chrono>
 #include <iostream>
+#include <memory>
 #include <thread>
 #include <vector>
 #include "Module5/unit_sphere_node.hpp"
 #include <Module5/ball_transform.hpp>
+//for random
+#include <cstdlib>
+#include <ctime>
 namespace cg
 {
 
@@ -49,7 +56,7 @@ void logmsg(const char *message, ...)
 // SDL Objects
 SDL_Window       *g_sdl_window = nullptr;
 SDL_GLContext     g_gl_context;
-constexpr int32_t DRAWS_PER_SECOND = 30;
+constexpr int32_t DRAWS_PER_SECOND = 72;
 constexpr int32_t DRAW_INTERVAL_MILLIS =
     static_cast<int32_t>(1000.0 / static_cast<double>(DRAWS_PER_SECOND));
 
@@ -59,6 +66,66 @@ std::shared_ptr<cg::SceneNode> g_scene_root;
 cg::SceneState g_scene_state;
 
 std::shared_ptr<cg::BallTransform> g_test_ball;
+std::vector<std::shared_ptr<cg::BallTransform>> g_balls;
+std::vector<cg::Plane> g_bounding_planes;
+
+
+//function to assist in ball creation 
+void create_balls(std::shared_ptr<cg::UnitSphere> unit_sphere,
+                  std::shared_ptr<cg::SceneNode> shader)
+{
+   g_balls.clear();
+
+   //colors 
+   std::vector<cg::Color4> colors = {
+      cg::Color4(1.0f, 0.0f, 0.0f), 
+      cg::Color4(0.0f, 1.0f, 0.0f),
+      cg::Color4(0.0f, 0.0f, 1.0f)
+   };
+
+   //create 9 balsl 
+   for(int color_idx = 0; color_idx < 3; color_idx++)
+   {
+      for(int ball_idx = 0; ball_idx < 3; ball_idx++)
+      {
+         // x,y values between -40 and 40, z values between 25 and 75
+         float x = -40.0f + (std::rand() / (float)RAND_MAX) * 80.0f;  // -40 to +40
+         float y = -40.0f + (std::rand() / (float)RAND_MAX) * 80.0f;  // -40 to +40
+         float z = 25.0f + (std::rand() / (float)RAND_MAX) * 50.0f;   // 25 to 75
+            
+         cg::Point3 start_pos(x, y, z);
+         
+         // Random radius between 3 and 7 units
+         float radius = 3.0f + (std::rand() / (float)RAND_MAX) * 4.0f;
+         
+         // Random unit direction vector
+         float dx = (std::rand() / (float)RAND_MAX) * 2.0f - 1.0f;  // -1 to 1
+         float dy = (std::rand() / (float)RAND_MAX) * 2.0f - 1.0f;  // -1 to 1
+         float dz = (std::rand() / (float)RAND_MAX) * 2.0f - 1.0f;  // -1 to 1
+         
+         cg::Vector3 direction(dx, dy, dz);
+         direction.normalize(); // Ensure unit length
+
+         float speed = 5.0f + (std::rand() / (float)RAND_MAX) * 10.0f;
+
+         //create the ball transform 
+         std::shared_ptr<cg::BallTransform> ball_transform = std::make_shared<cg::BallTransform>(
+            radius, start_pos, direction, speed
+         );
+
+         //create the color node 
+          std::shared_ptr<cg::ColorNode> ball_color = std::make_shared<cg::ColorNode>(colors[color_idx]);
+
+         //add them to the scene graph 
+         shader->add_child(ball_color);
+         ball_color->add_child(ball_transform);
+         ball_transform->add_child(unit_sphere);
+
+         //add to global list 
+         g_balls.push_back(ball_transform);
+      }
+   }
+}
 // Sleep function to help run a reasonable timer
 void sleep(int32_t milliseconds)
 {
@@ -225,9 +292,163 @@ std::shared_ptr<cg::SceneNode> construct_unit_box(std::shared_ptr<cg::UnitSquare
     return box;
 }
 
-/**
- * Construct the scene
- */
+void check_ball_plane_collisions(std::shared_ptr<cg::BallTransform> ball)
+{
+   cg::Point3 position = ball->getPosition();
+   float radius  = ball->getRadius();
+   cg::Vector3 velocity = ball->getVelocity();
+
+   //assume frame time 
+   float frame_time = 1.0f / 72.0f;
+
+   float closest_collision_time = frame_time;
+   cg::Plane* collision_plane = nullptr;
+
+   for(auto& plane : g_bounding_planes)
+   {
+      //calculate signed distance from ball center to plane 
+      float signed_dist = plane.solve(position);
+
+      //if ball is moving toward plane
+      float velocity_toward_plane = -velocity.dot(plane.get_normal());
+
+      if(velocity_toward_plane > 0)
+      {
+         //calculate distance to collision 
+         float collisison_distance = signed_dist - radius;
+
+         if(collisison_distance <= velocity_toward_plane * frame_time 
+            && collisison_distance > 0)
+         {
+            float collision_time = collisison_distance / velocity_toward_plane;
+            if(collision_time < closest_collision_time 
+               &&collision_time >= 0)
+            {
+               closest_collision_time = collision_time;
+               collision_plane = &plane;
+            }
+         }
+      }
+   }
+
+   //set collision data in the ball transform 
+   if(collision_plane != nullptr)
+      ball->setCollision(closest_collision_time, collision_plane);
+   else 
+      ball->clearCollision();
+}
+
+bool check_ball_ball_collision(std::shared_ptr<cg::BallTransform> ball1,
+                               std::shared_ptr<cg::BallTransform> ball2)
+{
+   cg::Point3 pos1 = ball1->getPosition();
+   cg::Point3 pos2 = ball2->getPosition();
+   cg::Vector3 vel1 = ball1->getVelocity();
+   cg::Vector3 vel2 = ball2->getVelocity();
+
+   float radius1 = ball1->getRadius();
+   float radius2 = ball2->getRadius();
+
+   //see if they're stuck together
+   cg::Vector3 separation = pos2 - pos1;
+   float distance = separation.norm();
+   float combined_radius = radius1 + radius2;
+
+   //already intersecting reposition and move on 
+   if(distance < combined_radius)
+   {
+      if(distance > 0.001f) //avoid a zero div 
+      {
+         cg::Vector3 separation_unit = separation * (1 / distance);
+         float overlap = combined_radius - distance;
+
+         cg::Point3 new_pos1 = pos1 - separation_unit * (overlap * 0.5f);
+         cg::Point3 new_pos2 = pos2 - separation_unit * (overlap * 0.5f);
+
+         ball1->setPosition(new_pos1);
+         ball2->setPosition(new_pos2);
+         // Reflect velocities off the collision plane
+         cg::Vector3 new_vel1 = vel1.reflect(separation_unit);
+         cg::Vector3 new_vel2 = vel2.reflect(separation_unit * -1);
+            
+         ball1->setVelocity(new_vel1);
+         ball2->setVelocity(new_vel2);
+      }
+      return true;
+   }
+
+   cg::Vector3 relative_velocity = vel1 - vel2;
+   //no relative motion
+   if(relative_velocity.norm() < 0.001f) 
+      return false;
+   
+   cg::Ray3 ray(pos1, relative_velocity.normalize());
+   cg::BoundingSphere sphere(pos2, combined_radius);
+
+   float frame_time = 1.0f / 72.0f;
+
+   auto intersection = ray.intersect(sphere);
+
+   if(intersection.intersects && intersection.distance >= 0 &&
+      intersection.distance <= relative_velocity.norm() * frame_time)
+   {
+      //calculate collision point and normal 
+      cg::Point3 collision_point = ray.intersect(intersection.distance);
+      cg:: Vector3 collision_normal = (collision_point - pos2).normalize();
+
+      //reflect the velocity 
+      cg::Vector3 new_vel1 = vel1.reflect(collision_normal);
+      cg::Vector3 new_vel2 = vel2.reflect(collision_normal * -1);
+
+      ball1->setVelocity(new_vel1);
+      ball2->setVelocity(new_vel2);
+
+      return true;
+   }
+   return false;
+}
+// Initialize bounding planes for the room
+void initialize_bounding_planes()
+{
+    g_bounding_planes.clear();
+    
+    // Floor (z = 0, normal pointing up)
+    g_bounding_planes.push_back(cg::Plane(cg::Point3(0, 0, 0), cg::Vector3(0, 0, 1)));
+    
+    // Ceiling (z = 100, normal pointing down)  
+    g_bounding_planes.push_back(cg::Plane(cg::Point3(0, 0, 100), cg::Vector3(0, 0, -1)));
+    
+    // Left wall (x = -50, normal pointing right)
+    g_bounding_planes.push_back(cg::Plane(cg::Point3(-50, 0, 0), cg::Vector3(1, 0, 0)));
+    
+    // Right wall (x = 50, normal pointing left)
+    g_bounding_planes.push_back(cg::Plane(cg::Point3(50, 0, 0), cg::Vector3(-1, 0, 0)));
+    
+    // Back wall (y = 50, normal pointing toward camera)
+    g_bounding_planes.push_back(cg::Plane(cg::Point3(0, 50, 0), cg::Vector3(0, -1, 0)));
+    
+    // Front wall (y = -50, normal pointing away from camera) 
+    g_bounding_planes.push_back(cg::Plane(cg::Point3(0, -50, 0), cg::Vector3(0, 1, 0)));
+}
+
+void detect_collisions()
+{
+   //see if we hit a wall
+   for(auto& ball : g_balls)
+   {
+      check_ball_plane_collisions(ball);
+   }
+
+   //see if we hit our neighbors...this has to be so slow
+   for(size_t i=0; i < g_balls.size(); i++)
+   {
+      for(size_t j = i + 1; j < g_balls.size(); j++)
+      {
+         check_ball_ball_collision(g_balls[i], g_balls[j]);
+      }
+   }
+}
+// Updated construct_scene function
 void construct_scene()
 {
     // Shader node
@@ -241,114 +462,68 @@ void construct_scene()
     auto unit_square =
         std::make_shared<cg::UnitSquare>(shader->get_position_loc(), shader->get_normal_loc());
 
-    // Contruct transform nodes for the walls. Perform rotations so the
-    // walls face inwards
+    // Wall transforms (same as before)
     auto floor_transform = std::make_shared<cg::TransformNode>();
     floor_transform->scale(100.0f, 100.0f, 100.0f);
 
-    // Back wall is rotated +90 degrees about x: (y -> z)
     auto back_wall_transform = std::make_shared<cg::TransformNode>();
     back_wall_transform->translate(0.0f, 50.0f, 50.0f);
     back_wall_transform->rotate_x(90.0f);
     back_wall_transform->scale(100.0f, 100.0f, 1.0f);
 
-    // Left wall is rotated 90 degrees about y: (z -> x)
     auto left_wall_transform = std::make_shared<cg::TransformNode>();
     left_wall_transform->translate(-50.0f, 0.0f, 50.0f);
     left_wall_transform->rotate_y(90.0f);
     left_wall_transform->scale(100.0f, 100.0f, 1.0f);
 
-    // Right wall is rotated -90 about y: (z -> -x)
     auto right_wall_transform = std::make_shared<cg::TransformNode>();
     right_wall_transform->translate(50.0f, 0.0f, 50.0f);
     right_wall_transform->rotate_y(-90.0f);
     right_wall_transform->scale(100.0f, 100.0f, 1.0f);
 
-    // Rotate ceiling by 180 so it faces downward
     auto ceiling_transform = std::make_shared<cg::TransformNode>();
     ceiling_transform->translate(0.0f, 0.0f, 100.0f);
     ceiling_transform->rotate_x(180.0f);
     ceiling_transform->scale(100.0f, 100.0f, 1.0f);
 
-    // Construct color nodes for the walls, floor, and ceiling
+    // Wall colors
     auto floor_color = std::make_shared<cg::ColorNode>(cg::Color4(0.6f, 0.5f, 0.2f));
     auto back_wall_color = std::make_shared<cg::ColorNode>(cg::Color4(0.9f, 0.7f, 0.5f));
     auto wall_color = std::make_shared<cg::ColorNode>(cg::Color4(1.0f, 1.0f, 1.0f));
     auto ceiling_color = std::make_shared<cg::ColorNode>(cg::Color4(0.1f, 0.4f, 1.0f));
 
-    /*
-    // Construct a unit box with outward normals as a scene graph node
-    // using relative transforms
-    auto unit_box = construct_unit_box(unit_square);
-
-    // Set a purple color for the box
-    auto box_color = std::make_shared<cg::ColorNode>(cg::Color4(0.5f, 0.0f, 0.5f));
-
-    // Construct a transform node to position, size, and orient the box
-    auto box_transform = std::make_shared<cg::TransformNode>();
-    box_transform->translate(25.0f, 25.0f, 10.1f);
-    box_transform->rotate_z(45.0f);
-    box_transform->scale(40.0f, 20.0f, 20.0f);
-    */ 
-    // Create a unit sphere for testing
+    // Create unit sphere for all balls
     auto unit_sphere = std::make_shared<cg::UnitSphere>(
         shader->get_position_loc(), shader->get_normal_loc());
-    
-    // Create a test ball
-    cg::Point3 start_pos(0.0f, 0.0f, 20.0f);  // Center of room, low
-    cg::Vector3 direction0(1.0f, 1.0f, 0.0f);   // Moving diagonally
-    // Test 1: Move straight up
-    cg::Vector3 direction1(0.0f, 0.0f, 1.0f);
-    
-    // Test 2: Move up and to the right  
-    cg::Vector3 direction2(1.0f, 0.0f, 1.0f);
-    
-    // Test 3: Move toward camera and up
-    cg::Vector3 direction3(0.0f, -1.0f, 1.0f);
-    
-    // Test 4: Full diagonal (right, away, up)
-    cg::Vector3 direction4(1.0f, 1.0f, 1.0f);
-    float radius = 10.0f;
-    float speed = 20.0f;  // units per second
-    
-    auto ball_transform = std::make_shared<cg::BallTransform>(
-        radius, start_pos, direction3, speed);
-    
-    auto ball_color = std::make_shared<cg::ColorNode>(cg::Color4(1.0f, 0.0f, 0.0f)); // Red
-    
 
-  
     // Construct the scene layout
     g_scene_root = std::make_shared<cg::SceneNode>();
     g_scene_root->add_child(shader);
 
-    // Walls
+    // Add walls to scene
     shader->add_child(back_wall_color);
     back_wall_color->add_child(back_wall_transform);
     back_wall_transform->add_child(unit_square);
+    
     shader->add_child(wall_color);
     wall_color->add_child(left_wall_transform);
     left_wall_transform->add_child(unit_square);
     wall_color->add_child(right_wall_transform);
     right_wall_transform->add_child(unit_square);
+    
     shader->add_child(floor_color);
     floor_color->add_child(floor_transform);
     floor_transform->add_child(unit_square);
+    
     shader->add_child(ceiling_color);
     ceiling_color->add_child(ceiling_transform);
     ceiling_transform->add_child(unit_square);
 
-  /*
-    shader->add_child(box_color);
-    box_color->add_child(box_transform);
-    box_transform->add_child(unit_box);
-*/
-    // Add to scene graph
-    shader->add_child(ball_color);
-    ball_color->add_child(ball_transform);
-    ball_transform->add_child(unit_sphere);
-
-    g_test_ball = ball_transform;
+    // Create all 9 balls and add them to scene
+    create_balls(unit_sphere, shader);
+    
+    // Initialize bounding planes for collision detection
+    initialize_bounding_planes();
 }
 
 /**
@@ -457,6 +632,9 @@ int main(int argc, char **argv)
     // Main loop
     while(handle_events())
     {
+        //detect collisions 
+        detect_collisions();
+
         g_scene_root->update(g_scene_state); 
         display();
         sleep(DRAW_INTERVAL_MILLIS);

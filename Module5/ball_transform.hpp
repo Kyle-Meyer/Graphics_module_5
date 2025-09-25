@@ -43,6 +43,7 @@ public:
     
     // Setter for sphere-to-sphere collision
     void setVelocity(const Vector3& vel) { velocity = vel; }
+    void setPosition(const Point3& pos) { position = pos; }
 };
 
 } // namespace cg
