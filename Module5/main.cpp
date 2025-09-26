@@ -359,11 +359,12 @@ bool check_ball_ball_collision(std::shared_ptr<cg::BallTransform> ball1,
    {
       if(distance > 0.001f) //avoid a zero div 
       {
-         cg::Vector3 separation_unit = separation * (1 / distance);
+         cg::Vector3 separation_unit = separation;
+         separation_unit.normalize();
          float overlap = combined_radius - distance;
 
          cg::Point3 new_pos1 = pos1 - separation_unit * (overlap * 0.5f);
-         cg::Point3 new_pos2 = pos2 - separation_unit * (overlap * 0.5f);
+         cg::Point3 new_pos2 = pos2 + separation_unit * (overlap * 0.5f);
 
          ball1->setPosition(new_pos1);
          ball2->setPosition(new_pos2);
