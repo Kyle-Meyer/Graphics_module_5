@@ -556,7 +556,7 @@ int main(int argc, char **argv)
     }
 
     SDL_SetStringProperty(
-        props, SDL_PROP_WINDOW_CREATE_TITLE_STRING, "Simple Animation by Brian Russin");
+        props, SDL_PROP_WINDOW_CREATE_TITLE_STRING, "Simple Sphere animation with collisions by Kyle Meyer");
     SDL_SetBooleanProperty(props, SDL_PROP_WINDOW_CREATE_RESIZABLE_BOOLEAN, true);
     SDL_SetBooleanProperty(props, SDL_PROP_WINDOW_CREATE_OPENGL_BOOLEAN, true);
     SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_WIDTH_NUMBER, 800);

@@ -26,8 +26,6 @@ UnitSphere::UnitSphere(int32_t position_loc, int32_t normal_loc) : GeometryNode(
                  &vertex_list[0],
                  GL_STATIC_DRAW);
 
-    // NO EBO needed - we use glDrawArrays instead of glDrawElements
-
     // Create and configure VAO
     glGenVertexArrays(1, &vao_);
     glBindVertexArray(vao_);
@@ -60,7 +58,7 @@ UnitSphere::~UnitSphere()
 void UnitSphere::draw(SceneState &scene_state)
 {
     glBindVertexArray(vao_);
-    glDrawArrays(GL_TRIANGLES, 0, vertex_count_);  // Use glDrawArrays instead of glDrawElements
+    glDrawArrays(GL_TRIANGLES, 0, vertex_count_);
     glBindVertexArray(0);
 }
 
