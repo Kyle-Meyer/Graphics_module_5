@@ -42,6 +42,14 @@ class UnitSphere : public GeometryNode
      * @param vertex_list  Vector to store generated vertices and normals
      */
     void generateSphereGeometry(std::vector<VertexAndNormal> &vertex_list);
+    
+    /**
+     * Create a vertex at the specified latitude and longitude
+     * @param lat  Latitude in degrees
+     * @param lon  Longitude in degrees  
+     * @return     VertexAndNormal with position and normal set
+     */
+    VertexAndNormal createVertex(float lat, float lon) const;
 };
 
 } // namespace cg

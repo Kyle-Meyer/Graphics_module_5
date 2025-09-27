@@ -62,27 +62,30 @@ void UnitSphere::draw(SceneState &scene_state)
     glBindVertexArray(0);
 }
 
+VertexAndNormal UnitSphere::createVertex(float lat, float lon) const
+{
+    const float PI = 3.14159265359f;
+    const float DEG_TO_RAD = PI / 180.0f;
+    
+    float lat_rad = lat * DEG_TO_RAD;
+    float lon_rad = lon * DEG_TO_RAD;
+    
+    float x = cosf(lat_rad) * cosf(lon_rad);
+    float y = sinf(lat_rad);
+    float z = cosf(lat_rad) * sinf(lon_rad);
+    
+    VertexAndNormal vertex;
+    vertex.vertex.set(x, y, z);
+    vertex.normal.set(x, y, z);  // For unit sphere, normal = position
+    return vertex;
+}
+
 void UnitSphere::generateSphereGeometry(std::vector<VertexAndNormal> &vertex_list)
 {
     vertex_list.clear();
     
     const float PI = 3.14159265359f;
     const float DEG_TO_RAD = PI / 180.0f;
-    
-    // Helper function to create a vertex
-    auto createVertex = [&](float lat, float lon) -> VertexAndNormal {
-        float lat_rad = lat * DEG_TO_RAD;
-        float lon_rad = lon * DEG_TO_RAD;
-        
-        float x = cosf(lat_rad) * cosf(lon_rad);
-        float y = sinf(lat_rad);
-        float z = cosf(lat_rad) * sinf(lon_rad);
-        
-        VertexAndNormal vertex;
-        vertex.vertex.set(x, y, z);
-        vertex.normal.set(x, y, z);  // For unit sphere, normal = position
-        return vertex;
-    };
     
     // Generate triangles directly (no indexing - each triangle gets its own vertices)
     for (float lat = -90.0f; lat < 90.0f; lat += 10.0f) {
@@ -100,6 +103,7 @@ void UnitSphere::generateSphereGeometry(std::vector<VertexAndNormal> &vertex_lis
             vertex_list.push_back(createVertex(lat, next_lon));
             vertex_list.push_back(createVertex(next_lat, lon));
             vertex_list.push_back(createVertex(next_lat, next_lon));
+
         }
     }
 }
